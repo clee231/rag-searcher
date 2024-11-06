@@ -40,7 +40,7 @@ func appState() (*model, error) {
   vpWidth := windowWidth - 10
   vpHeight := windowHeight - 10
 
-  docVp := viewport.New(vpWidth - 35, vpHeight)
+  docVp := viewport.New(vpWidth - 35, vpHeight - 12)
   docVp.Style = lipgloss.NewStyle().
     BorderStyle(lipgloss.RoundedBorder()).
     BorderForeground(lipgloss.Color("205")).
@@ -72,9 +72,16 @@ func appState() (*model, error) {
     BorderForeground(lipgloss.Color("205")).
     MarginRight(2)
 
+  historyView := viewport.New(vpWidth - 23, 10)
+  historyView.Style = lipgloss.NewStyle().
+    BorderStyle(lipgloss.RoundedBorder()).
+    BorderForeground(lipgloss.Color("205")).
+    MarginRight(2)
+
   return &model{
     docView: docVp,
     fileView: fileView,
+    historyView: historyView,
     input: query,
   }, nil
 }
@@ -88,9 +95,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
   switch msg := msg.(type) {
   case tea.KeyMsg:
-    switch msg.String() {
-    case "ctrl+c", "q":
-      return m, tea.Quit
+    switch msg.Type {
+      case tea.KeyEnter:
+        m.historyView.SetContent(m.input.Value())
+        m.input.SetValue("")
+        return m, nil
+      case tea.KeyCtrlC:
+        return m, tea.Quit
     }
   case tea.WindowSizeMsg:
     m.docView.Width = msg.Width
@@ -103,7 +114,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
   doc := strings.Builder{}
-  doc.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.fileView.View(), m.docView.View()))
+  doc.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.fileView.View(), lipgloss.JoinVertical(lipgloss.Left, m.docView.View(), m.historyView.View())))
   doc.WriteString("\n" + m.input.View())
   return doc.String()
 }
