@@ -4,6 +4,10 @@ import (
   "fmt"
   "os"
   "strings"
+  "bytes"
+  "net/http"
+  "encoding/json"
+  "io/ioutil"
   "golang.org/x/term"
   "github.com/charmbracelet/bubbles/viewport"
   "github.com/charmbracelet/bubbles/textinput"
@@ -11,6 +15,27 @@ import (
   "github.com/charmbracelet/glamour"
   tea "github.com/charmbracelet/bubbletea"
 )
+
+
+func getEmbedding(text string) ([]float32, error) {
+    // Prepare the request payload
+    jsonData := map[string]string{"text": text}
+    jsonValue, _ := json.Marshal(jsonData)
+
+    // Send POST request to local server
+    resp, err := http.Post("http://127.0.0.1:8000/embed", "application/json", bytes.NewBuffer(jsonValue))
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    // Parse response
+    body, _ := ioutil.ReadAll(resp.Body)
+    var result map[string][]float32
+    json.Unmarshal(body, &result)
+
+    return result["embedding"], nil
+}
 
 const content = `
 # Slalom GenAI Bootcamp Project 5
@@ -26,12 +51,14 @@ Over the years, the IETF has published more than 10,000 RFCs across a wide range
 This tool allows you to search through the IETF RFCs and find the RFC that best matches your query.
 `
 
+
 // Define the application state model
 type model struct {
   input textinput.Model
   docView  viewport.Model
   fileView viewport.Model
   historyView viewport.Model
+  historyTxt strings.Builder
 }
 
 // Define the application state components
@@ -97,7 +124,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
   case tea.KeyMsg:
     switch msg.Type {
       case tea.KeyEnter:
-        m.historyView.SetContent(m.input.Value())
+        txt := strings.Builder{}
+        txt.WriteString(m.historyTxt.String() + m.input.Value() + "\n")
+        m.historyTxt = txt
+        m.historyView.SetContent(m.historyTxt.String())
         m.input.SetValue("")
         return m, nil
       case tea.KeyCtrlC:
