@@ -9,8 +9,10 @@ import (
   "encoding/json"
   "io/ioutil"
   "golang.org/x/term"
+  "strconv"
   "github.com/charmbracelet/bubbles/viewport"
   "github.com/charmbracelet/bubbles/textinput"
+  "github.com/charmbracelet/bubbles/list"
   "github.com/charmbracelet/lipgloss"
   "github.com/charmbracelet/glamour"
   tea "github.com/charmbracelet/bubbletea"
@@ -61,6 +63,15 @@ type model struct {
   historyTxt strings.Builder
 }
 
+// Define a custom item type that implements list.Item
+type item struct {
+    title string
+}
+
+func (i item) Title() string       { return i.title }
+func (i item) Description() string { return "" }
+func (i item) FilterValue() string { return i.title }
+
 // Define the application state components
 func appState() (*model, error) {
   windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
@@ -105,16 +116,87 @@ func appState() (*model, error) {
     BorderForeground(lipgloss.Color("205")).
     MarginRight(2)
 
+  // Get files from data directory
+  files, err := ioutil.ReadDir("./data/")
+  if err != nil {
+    fmt.Println("Could not read data directory:", err)
+  }
+  // Log a message about files read
+  historyTxt := strings.Builder{}
+  historyTxt.WriteString("Read in " + strconv.Itoa(len(files)) + " files." + "\n")
+  historyView.SetContent(historyTxt.String())
+
+  // Convert the filenames into list items
+  items := make([]list.Item, 0)
+  for _, file := range files {
+      if !file.IsDir() { // Only add files, not subdirectories
+          items = append(items, item{title: file.Name()})
+      }
+  }
+
+  // Initialize the list
+  const defaultWidth = 20
+  l := list.New(items, list.NewDefaultDelegate(), windowWidth - (windowWidth - 40) , windowHeight)
+  l.Title = "Files in Directory"
+
+  fileView.SetContent(l.View())
+
+
   return &model{
     docView: docVp,
     fileView: fileView,
     historyView: historyView,
+    historyTxt: historyTxt,
     input: query,
   }, nil
 }
 
+// Define message types to handle the result of the command
+type dataMsg struct{ data string }
+type errMsg struct{ err error }
+
+// Command to process files
+func (m model) processDataCmd() tea.Cmd {
+    return func() tea.Msg {
+        embedData := strings.Builder{}
+        // Get files from data directory
+        files, err := ioutil.ReadDir("./data/")
+        if err != nil {
+          fmt.Println("Could not read data directory:", err)
+        }
+
+        // Convert file contents into embeddings
+        for _, file := range files {
+            if !file.IsDir() { // Only process files
+              filePtr, err := os.ReadFile(file.Name())
+              if err != nil {
+                fmt.Println("Could not read file:", err)
+              }
+              // Prepare the request payload
+              jsonData := map[string]string{"text": string(filePtr)}
+              jsonValue, _ := json.Marshal(jsonData)
+
+              // Send POST request to local server
+              resp, err := http.Post("http://127.0.0.1:8000/embed", "application/json", bytes.NewBuffer(jsonValue))
+              if err != nil {
+                  fmt.Println("Could not get embedding", err)
+              }
+              defer resp.Body.Close()
+
+              // Parse response
+              body, _ := ioutil.ReadAll(resp.Body)
+              embedData.WriteString(string(body))
+
+              // Log message in HistoryTxt
+            }
+        }
+
+        return dataMsg{string(embedData.String())}
+    }
+}
+
 func (m model) Init() tea.Cmd {
-  return nil
+  return m.processDataCmd()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
