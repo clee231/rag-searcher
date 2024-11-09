@@ -9,10 +9,9 @@ import (
   "encoding/json"
   "io/ioutil"
   "golang.org/x/term"
-  "strconv"
   "github.com/charmbracelet/bubbles/viewport"
   "github.com/charmbracelet/bubbles/textinput"
-  "github.com/charmbracelet/bubbles/list"
+  "github.com/charmbracelet/bubbles/filepicker"
   "github.com/charmbracelet/lipgloss"
   "github.com/charmbracelet/glamour"
   tea "github.com/charmbracelet/bubbletea"
@@ -52,13 +51,14 @@ Over the years, the IETF has published more than 10,000 RFCs across a wide range
 
 This tool allows you to search through the IETF RFCs and find the RFC that best matches your query.
 `
-
+const dataDir = "./data/"
 
 // Define the application state model
 type model struct {
   input textinput.Model
   docView  viewport.Model
   fileView viewport.Model
+  filePicker filepicker.Model
   historyView viewport.Model
   historyTxt strings.Builder
 }
@@ -116,35 +116,44 @@ func appState() (*model, error) {
     BorderForeground(lipgloss.Color("205")).
     MarginRight(2)
 
-  // Get files from data directory
-  files, err := ioutil.ReadDir("./data/")
-  if err != nil {
-    fmt.Println("Could not read data directory:", err)
-  }
-  // Log a message about files read
-  historyTxt := strings.Builder{}
-  historyTxt.WriteString("Read in " + strconv.Itoa(len(files)) + " files." + "\n")
-  historyView.SetContent(historyTxt.String())
+  // Initialize the file picker
+  fp := filepicker.New()
+  fp.AllowedTypes = []string{".txt"}
+  fp.CurrentDirectory = dataDir
+  fp.Init()
 
-  // Convert the filenames into list items
-  items := make([]list.Item, 0)
-  for _, file := range files {
-      if !file.IsDir() { // Only add files, not subdirectories
-          items = append(items, item{title: file.Name()})
-      }
-  }
+
+  //// Get files from data directory
+  //files, err := ioutil.ReadDir("./data/")
+  //if err != nil {
+  //  fmt.Println("Could not read data directory:", err)
+  //}
+  //// Log a message about files read
+  historyTxt := strings.Builder{}
+  //historyTxt.WriteString("Read in " + strconv.Itoa(len(files)) + " files." + "\n")
+  //historyView.SetContent(historyTxt.String())
+
+  //// Convert the filenames into list items
+  //items := make([]list.Item, 0)
+  //for _, file := range files {
+  //    if !file.IsDir() { // Only add files, not subdirectories
+  //        items = append(items, item{title: file.Name()})
+  //    }
+  //}
 
   // Initialize the list
   const defaultWidth = 20
-  l := list.New(items, list.NewDefaultDelegate(), windowWidth - (windowWidth - 40) , windowHeight)
-  l.Title = "Files in Directory"
+  //l := list.New(items, list.NewDefaultDelegate(), windowWidth - (windowWidth - 40) , windowHeight)
+  //l.Title = "Files in Directory"
+  
 
-  fileView.SetContent(l.View())
+  fileView.SetContent(fp.View())
 
 
   return &model{
     docView: docVp,
     fileView: fileView,
+    filePicker: fp,
     historyView: historyView,
     historyTxt: historyTxt,
     input: query,
@@ -160,7 +169,7 @@ func (m model) processDataCmd() tea.Cmd {
     return func() tea.Msg {
         embedData := strings.Builder{}
         // Get files from data directory
-        files, err := ioutil.ReadDir("./data/")
+        files, err := ioutil.ReadDir(dataDir)
         if err != nil {
           fmt.Println("Could not read data directory:", err)
         }
@@ -168,7 +177,7 @@ func (m model) processDataCmd() tea.Cmd {
         // Convert file contents into embeddings
         for _, file := range files {
             if !file.IsDir() { // Only process files
-              filePtr, err := os.ReadFile(file.Name())
+              filePtr, err := os.ReadFile(dataDir + file.Name())
               if err != nil {
                 fmt.Println("Could not read file:", err)
               }
