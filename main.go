@@ -33,7 +33,6 @@ This tool allows you to search through the IETF RFCs and find the RFC that best 
 const dataDir = "./data/"
 
 type model struct {
-	filepicker   filepicker.Model
 	selectedFile string
 	quitting     bool
 	err          error
@@ -120,7 +119,6 @@ func InitModel() (*model, error) {
 	docView.SetContent(str)
 
 	return &model{
-		filepicker:  fp,
 		input:       query,
 		fileView:    fileView,
 		filePicker:  fp,
@@ -152,17 +150,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Update the input with any new input from keyboard
 	m.input, cmd = m.input.Update(msg)
 	// Update the file picker
-	m.filepicker, cmd = m.filepicker.Update(msg)
+	m.filePicker, cmd = m.filePicker.Update(msg)
 
 	// Did the user select a file?
-	if didSelect, path := m.filepicker.DidSelectFile(msg); didSelect {
+	if didSelect, path := m.filePicker.DidSelectFile(msg); didSelect {
 		// Get the path of the selected file.
 		m.selectedFile = path
 	}
 
 	// Did the user select a disabled file?
 	// This is only necessary to display an error to the user.
-	if didSelect, path := m.filepicker.DidSelectDisabledFile(msg); didSelect {
+	if didSelect, path := m.filePicker.DidSelectDisabledFile(msg); didSelect {
 		// Let's clear the selectedFile and display an error.
 		m.err = errors.New(path + " is not valid.")
 		m.selectedFile = ""
