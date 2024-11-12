@@ -68,6 +68,7 @@ func InitModel() (*model, error) {
 	fp.CurrentDirectory = dataDir
 	fp.FileAllowed = true
 	fp.DirAllowed = false
+	fp.ShowPermissions = false
 
 	// Initialize input box
 	query := textinput.New()
@@ -96,11 +97,11 @@ func InitModel() (*model, error) {
 	historyView.SetContent(historyTxt.String())
 
 	// Initialize the document viewport
-	docView := viewport.New(vpWidth-35, vpHeight-12)
+	docView := viewport.New(vpWidth-23, vpHeight-12)
 	docView.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("205")).
-		MarginRight(35)
+		MarginRight(2)
 
 	// Create a new glamour renderer
 	renderer, err := glamour.NewTermRenderer(
@@ -137,6 +138,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case tea.KeyEnter:
 			txt := strings.Builder{}
+			if m.input.Value() == "" {
+				return m, nil
+			}
 			txt.WriteString(m.historyTxt.String() + m.input.Value() + "\n")
 			m.historyTxt = txt
 			m.historyView.SetContent(m.historyTxt.String())
@@ -174,10 +178,11 @@ func (m model) View() string {
 	if m.quitting {
 		return ""
 	}
-	var tui strings.Builder
-	tui.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.fileView.View(), lipgloss.JoinVertical(lipgloss.Left, m.docView.View(), m.historyView.View())))
-	tui.WriteString("\n" + m.input.View())
-	return tui.String()
+  var tui strings.Builder
+  m.fileView.SetContent(m.filePicker.View())
+  tui.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.fileView.View(), lipgloss.JoinVertical(lipgloss.Left, m.docView.View(), m.historyView.View())))
+  tui.WriteString("\n" + m.input.View())
+  return tui.String()
 }
 
 func main() {
