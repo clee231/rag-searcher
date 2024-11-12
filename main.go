@@ -15,6 +15,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/philippgille/chromem-go"
 )
 
 const content = `
@@ -31,6 +33,49 @@ Over the years, the IETF has published more than 10,000 RFCs across a wide range
 This tool allows you to search through the IETF RFCs and find the RFC that best matches your query.
 `
 const dataDir = "./data/"
+const embeddingModel = "nomic-embed-text"
+
+func ragInit() {
+  // Initialize the chromem-go library
+  db, err := chromem.NewPersistentDB("./db", false)
+  if err != nil {
+    fmt.Println("Could not initialize Chromem database:", err)
+    os.Exit(1)
+  }
+	// Create a document collection
+	collection, err := db.GetOrCreateCollection("RFCs", nil, chromem.NewEmbeddingFuncOllama("nomic-embed-text", ""))
+	if err != nil {
+		fmt.Println("Could not create collection:", err)
+		os.Exit(1)
+	}
+
+	// Check if the collection is empty
+	if collection.Count() == 0 {
+		// Load the RFCs from the data directory
+		files, err := os.ReadDir(dataDir)
+		if err != nil {
+			fmt.Println("Could not read data directory:", err)
+			os.Exit(1)
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			// Read the RFC file
+			rfc, err := os.ReadFile(dataDir + file.Name())
+			if err != nil {
+				fmt.Println("Could not read RFC file:", err)
+				os.Exit(1)
+			}
+			// Embed the RFC into the collection
+			err = collection.Embed(rfc, "nomic-embed-text", "")
+			if err != nil {
+				fmt.Println("Could not embed RFC:", err)
+				os.Exit(1)
+			}
+		}
+  }
+}
 
 type model struct {
 	selectedFile string
@@ -53,6 +98,7 @@ func clearErrorAfter(t time.Duration) tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
+	ragInit()
 	return m.filePicker.Init()
 }
 
